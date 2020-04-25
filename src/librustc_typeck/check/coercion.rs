@@ -774,24 +774,51 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             ty::RawPtr(mt) => (false, mt),
             _ => return self.unify_and(a, b, identity),
         };
-
-        // Check that the types which they point at are compatible.
-        let a_unsafe = self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: mt_a.ty });
         coerce_mutbls(mt_a.mutbl, mutbl_b)?;
-        // Although references and unsafe ptrs have the same
-        // representation, we still register an Adjust::DerefRef so that
-        // regionck knows that the region for `a` must be valid here.
+
         if is_ref {
-            self.unify_and(a_unsafe, b, |target| {
-                vec![
-                    Adjustment { kind: Adjust::Deref(None), target: mt_a.ty },
-                    Adjustment { kind: Adjust::Borrow(AutoBorrow::RawPtr(mutbl_b)), target },
-                ]
-            })
-        } else if mt_a.mutbl != mutbl_b {
-            self.unify_and(a_unsafe, b, simple(Adjust::Pointer(PointerCast::MutToConstPointer)))
+            let span = self.cause.span;
+            let mut first_error = None;
+            let mut autoderef = self.autoderef(span, a);
+            let InferOk { value: target, mut obligations } =
+                match autoderef.by_ref().skip(1).find_map(|(referent_ty, _)| {
+                    // Check that the types which they point at are compatible.
+                    let a_unsafe =
+                        self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: referent_ty });
+                    match self.unify(a_unsafe, b) {
+                        Ok(ok) => Some(ok),
+                        Err(err) => {
+                            if first_error.is_none() {
+                                first_error = Some(err);
+                            }
+                            None
+                        }
+                    }
+                }) {
+                    Some(d) => d,
+                    None => {
+                        let err = first_error.expect("coerce_unsafe_ptr had no error");
+                        debug!("coerce_unsafe_ptr: failed with err = {:?}", err);
+                        return Err(err);
+                    }
+                };
+
+            let needs = Needs::maybe_mut_place(mutbl_b);
+            let InferOk { value: mut adjustments, obligations: o } =
+                autoderef.adjust_steps_as_infer_ok(self, needs);
+            obligations.extend(o);
+            obligations.extend(autoderef.into_obligations());
+
+            adjustments
+                .push(Adjustment { kind: Adjust::Borrow(AutoBorrow::RawPtr(mutbl_b)), target });
+            success(adjustments, target, obligations)
         } else {
-            self.unify_and(a_unsafe, b, identity)
+            let a_unsafe = self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: mt_a.ty });
+            if mt_a.mutbl != mutbl_b {
+                self.unify_and(a_unsafe, b, simple(Adjust::Pointer(PointerCast::MutToConstPointer)))
+            } else {
+                self.unify_and(a_unsafe, b, identity)
+            }
         }
     }
 }
