@@ -155,6 +155,8 @@ impl<'tcx> Relate<'tcx> for ty::FnSig<'tcx> {
         a: &ty::FnSig<'tcx>,
         b: &ty::FnSig<'tcx>,
     ) -> RelateResult<'tcx, ty::FnSig<'tcx>> {
+        // donoughliu difference in fn signature relating?
+        debug!(">>>>> donoughliu relate FnSig a={:?} b={:?}", a, b);
         let tcx = relation.tcx();
 
         if a.c_variadic != b.c_variadic {
@@ -180,11 +182,14 @@ impl<'tcx> Relate<'tcx> for ty::FnSig<'tcx> {
             .chain(iter::once(((a.output(), b.output()), true)))
             .map(|((a, b), is_output)| {
                 if is_output {
+                    // donoughliu i suspect we came into problem here
+                    debug!(">>>>> donoughliu coerce parameter {:?} and {:?}", a, b);
                     relation.relate(&a, &b)
                 } else {
                     relation.relate_with_variance(ty::Contravariant, &a, &b)
                 }
             });
+        debug!(">>>>> donoughliu we came into here.");
         Ok(ty::FnSig {
             inputs_and_output: tcx.mk_type_list(inputs_and_output)?,
             c_variadic: a.c_variadic,
@@ -337,12 +342,16 @@ impl<'tcx> Relate<'tcx> for Ty<'tcx> {
 /// The main "type relation" routine. Note that this does not handle
 /// inference artifacts, so you should filter those out before calling
 /// it.
+/// donoughliu: It seems that every branch gives a type that pretty similar
+/// to the given types. e.g. you cannot get an reference to slice from two
+/// references to array.
 pub fn super_relate_tys<R: TypeRelation<'tcx>>(
     relation: &mut R,
     a: Ty<'tcx>,
     b: Ty<'tcx>,
 ) -> RelateResult<'tcx, Ty<'tcx>> {
     let tcx = relation.tcx();
+    // donoughliu it seems that we cannot fix the array coerce issue here.
     debug!("super_relate_tys: a={:?} b={:?}", a, b);
     match (&a.kind, &b.kind) {
         (&ty::Infer(_), _) | (_, &ty::Infer(_)) => {
@@ -420,6 +429,7 @@ pub fn super_relate_tys<R: TypeRelation<'tcx>>(
         }
 
         (&ty::Ref(a_r, a_ty, a_mutbl), &ty::Ref(b_r, b_ty, b_mutbl)) => {
+            // donoughliu from here we tried to coerce the `&[u8; 3]` and `&[u8; 4]`
             let r = relation.relate_with_variance(ty::Contravariant, &a_r, &b_r)?;
             let a_mt = ty::TypeAndMut { ty: a_ty, mutbl: a_mutbl };
             let b_mt = ty::TypeAndMut { ty: b_ty, mutbl: b_mutbl };
@@ -428,6 +438,7 @@ pub fn super_relate_tys<R: TypeRelation<'tcx>>(
         }
 
         (&ty::Array(a_t, sz_a), &ty::Array(b_t, sz_b)) => {
+            // donoughliu and we pops out here
             let t = relation.relate(&a_t, &b_t)?;
             match relation.relate(&sz_a, &sz_b) {
                 Ok(sz) => Ok(tcx.mk_ty(ty::Array(t, sz))),

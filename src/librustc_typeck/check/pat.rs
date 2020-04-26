@@ -697,6 +697,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Ty<'tcx>,
         ti: TopInfo<'tcx>,
     ) -> Ty<'tcx> {
+        debug!(">>>>>> donoughliu check_pat_path");
         let tcx = self.tcx;
 
         // We have already resolved the path.
@@ -783,6 +784,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         def_bm: BindingMode,
         ti: TopInfo<'tcx>,
     ) -> Ty<'tcx> {
+        debug!(">>>>>> donoughliu check_pat_tuple_struct");
         let tcx = self.tcx;
         let on_error = || {
             let parent_pat = Some(pat);

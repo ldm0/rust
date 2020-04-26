@@ -546,9 +546,11 @@ impl<'a, 'tcx> CastCheck<'tcx> {
                             fcx.tcx.mk_fn_ptr(f),
                             AllowTwoPhase::No,
                         );
+                        debug!(">>>>>> donoughliu we get result after FnDef coercing: {:?}", res);
                         if let Err(TypeError::IntrinsicCast) = res {
                             return Err(CastError::IllegalCast);
                         }
+                        // donoughliu here fn coercion error emits
                         if res.is_err() {
                             return Err(CastError::NonScalar);
                         }

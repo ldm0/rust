@@ -3588,7 +3588,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         fallback_has_occurred: bool,
         mutate_fullfillment_errors: impl Fn(&mut Vec<traits::FulfillmentError<'tcx>>),
     ) {
+        debug!(">>>>>> donoughliu select_obligations_where_possible");
         let result = self.fulfillment_cx.borrow_mut().select_where_possible(self);
+        debug!(">>>>>> donoughliu select_obligations_where_possible result: {:?}", result);
         if let Err(mut errors) = result {
             mutate_fullfillment_errors(&mut errors);
             self.report_fulfillment_errors(&errors, self.inh.body_id, fallback_has_occurred);
@@ -3897,6 +3899,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         tuple_arguments: TupleArgumentsFlag,
         def_span: Option<Span>,
     ) {
+        // donoughliu here we check function arguments type
+        // donoughliu the expected_arg_tys here might be the like tail is Result but function returns option
+        debug!(
+            "check_argument_types(fn inputs: {:?}, expected_arg_tys: {:?})",
+            fn_inputs, expected_arg_tys
+        );
         let tcx = self.tcx;
         // Grab the argument types, supplying fresh type variables
         // if the wrong number of arguments were supplied
@@ -4076,6 +4084,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // the call. This helps coercions.
             if check_closures {
                 self.select_obligations_where_possible(false, |errors| {
+                    debug!("into the closure");
                     self.point_at_type_arg_instead_of_call_if_possible(errors, expr);
                     self.point_at_arg_instead_of_call_if_possible(
                         errors,
@@ -4113,19 +4122,27 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     continue;
                 }
 
-                debug!("checking the argument");
                 let formal_ty = formal_tys[i];
 
                 // The special-cased logic below has three functions:
                 // 1. Provide as good of an expected type as possible.
                 let expected = Expectation::rvalue_hint(self, expected_arg_tys[i]);
 
+                // donoughliu we should check here for #57749
+                // donoughliu here we trigger the error
+                // donoughliu here expected is just &u32 rather than u32
                 let checked_ty = self.check_expr_with_expectation(&arg, expected);
 
                 // 2. Coerce to the most detailed type that could be coerced
                 //    to, which is `expected_ty` if `rvalue_hint` returns an
                 //    `ExpectHasType(expected_ty)`, or the `formal_ty` otherwise.
                 let coerce_ty = expected.only_has_type(self).unwrap_or(formal_ty);
+
+                debug!(
+                    "checking the argument, formal_ty: {:?}, expected: {:?}, checked_ty: {:?}, coerce_ty: {:?}",
+                    formal_ty, expected, checked_ty, coerce_ty
+                );
+
                 // We're processing function arguments so we definitely want to use
                 // two-phase borrows.
                 self.demand_coerce(&arg, checked_ty, coerce_ty, AllowTwoPhase::Yes);
@@ -4170,6 +4187,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 }
             }
         }
+        debug!(">>>>>> donoughliu check_argument_types ends.");
     }
 
     fn err_args(&self, len: usize) -> Vec<Ty<'tcx>> {
@@ -4379,6 +4397,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         qpath: &QPath<'_>,
         hir_id: hir::HirId,
     ) -> Option<(&'tcx ty::VariantDef, Ty<'tcx>)> {
+        debug!(">>>>>> donoughliu check_struct_path");
         let path_span = match *qpath {
             QPath::Resolved(_, ref path) => path.span,
             QPath::TypeRelative(ref qself, _) => qself.span,
@@ -4685,6 +4704,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         blk: &'tcx hir::Block<'tcx>,
         expected: Expectation<'tcx>,
     ) -> Ty<'tcx> {
+        debug!("check_block_with_expcted(expected={:?})", expected);
         let prev = {
             let mut fcx_ps = self.ps.borrow_mut();
             let unsafety_state = fcx_ps.recurse(blk);
@@ -4729,6 +4749,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
             // check the tail expression **without** holding the
             // `enclosing_breakables` lock below.
+            // donoughliu attention here
             let tail_expr_ty = tail_expr.map(|t| self.check_expr_with_expectation(t, expected));
 
             let mut enclosing_breakables = self.enclosing_breakables.borrow_mut();
@@ -5397,6 +5418,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     // Instantiates the given path, which must refer to an item with the given
     // number of type parameters and type.
+    // donoughliu we walk by here in function arguments type checking
     pub fn instantiate_value_path(
         &self,
         segments: &[hir::PathSegment<'_>],
@@ -5633,6 +5655,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         assert!(!substs.has_escaping_bound_vars());
         assert!(!ty.has_escaping_bound_vars());
 
+        // donoughliu it's here
         // First, store the "user substs" for later.
         self.write_user_type_annotation_from_substs(hir_id, def_id, substs, user_self_ty);
 
@@ -5676,6 +5699,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     /// Add all the obligations that are required, substituting and normalized appropriately.
     fn add_required_obligations(&self, span: Span, def_id: DefId, substs: &SubstsRef<'tcx>) {
+        debug!(">>>>>> donoughliu add_required_obligations");
         let (bounds, spans) = self.instantiate_bounds(span, def_id, &substs);
 
         for (i, mut obligation) in traits::predicates_for_generics(

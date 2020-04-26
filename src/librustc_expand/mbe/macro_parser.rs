@@ -95,6 +95,8 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
+use log::debug;
+
 // To avoid costly uniqueness checks, we require that `MatchSeq` always has a nonempty body.
 
 /// Either a sequence of token trees or a single one. This is used as the representation of the
@@ -621,6 +623,7 @@ fn inner_parse_loop<'root, 'tt>(
 /// Use the given sequence of token trees (`ms`) as a matcher. Match the token
 /// stream from the given `parser` against it and return the match.
 pub(super) fn parse_tt(parser: &mut Cow<'_, Parser<'_>>, ms: &[TokenTree]) -> NamedParseResult {
+    debug!(">>>>>> donoughliu: token tree: {:#?}", ms);
     // A queue of possible matcher positions. We initialize it with the matcher position in which
     // the "dot" is before the first token of the first token tree in `ms`. `inner_parse_loop` then
     // processes all of these possible matcher positions and produces possible next positions into
@@ -644,6 +647,8 @@ pub(super) fn parse_tt(parser: &mut Cow<'_, Parser<'_>>, ms: &[TokenTree]) -> Na
         // Process `cur_items` until either we have finished the input or we need to get some
         // parsing from the black-box parser done. The result is that `next_items` will contain a
         // bunch of possible next matcher positions in `next_items`.
+        debug!(">>>>>> donoughliu: inner_parse_loop called once.");
+        //debug!(">>>>>> donoughliu: current first parse items{}", &cur_items[0]);
         match inner_parse_loop(
             parser.sess,
             &mut cur_items,

@@ -69,6 +69,7 @@ impl<'infcx, 'tcx> InferCtxt<'infcx, 'tcx> {
     where
         R: TypeRelation<'tcx>,
     {
+        debug!("super_combine_tys: a={:?} b={:?} a.kind={:?} b.kind={:?}", a, b, a.kind, b.kind);
         let a_is_expected = relation.a_is_expected();
 
         match (&a.kind, &b.kind) {

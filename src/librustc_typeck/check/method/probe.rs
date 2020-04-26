@@ -447,6 +447,7 @@ fn method_autoderef_steps<'tcx>(
     tcx: TyCtxt<'tcx>,
     goal: CanonicalTyGoal<'tcx>,
 ) -> MethodAutoderefStepsResult<'tcx> {
+    // donoughliu here we tried to auto-dereference
     debug!("method_autoderef_steps({:?})", goal);
 
     tcx.infer_ctxt().enter_with_canonical(DUMMY_SP, &goal, |ref infcx, goal, inference_vars| {

@@ -725,6 +725,7 @@ impl HandlerInner {
     }
 
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+        // donoughliu highlight
         if diagnostic.cancelled() {
             return;
         }
@@ -758,6 +759,7 @@ impl HandlerInner {
             }
         }
         if diagnostic.is_error() {
+            // donoughliu highlight here calls bump error count
             self.bump_err_count();
         }
     }

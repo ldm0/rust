@@ -70,6 +70,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 // Otherwise, we always treat operators as if they are
                 // overloaded. This is the way to be most flexible w/r/t
                 // types that get inferred.
+                // donoughliu hightlight call check_overloadeds_binop here
                 let (lhs_ty, rhs_ty, return_ty) =
                     self.check_overloaded_binop(expr, lhs_expr, rhs_expr, op, IsAssign::No);
 
@@ -170,6 +171,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     kind: TypeVariableOriginKind::MiscVariable,
                     span: lhs_expr.span,
                 });
+                // donoughliu highlight here calls demand_coerce
                 self.demand_coerce(lhs_expr, lhs_ty, fresh_var, AllowTwoPhase::No)
             }
             IsAssign::Yes => {

@@ -114,6 +114,7 @@ impl<'a, 'tcx> FulfillmentContext<'tcx> {
         &mut self,
         selcx: &mut SelectionContext<'a, 'tcx>,
     ) -> Result<(), Vec<FulfillmentError<'tcx>>> {
+        // donoughliu here we solve obligations
         debug!("select(obligation-forest-size={})", self.predicates.len());
 
         let mut errors = Vec::new();
@@ -226,7 +227,9 @@ impl<'tcx> TraitEngine<'tcx> for FulfillmentContext<'tcx> {
         &mut self,
         infcx: &InferCtxt<'_, 'tcx>,
     ) -> Result<(), Vec<FulfillmentError<'tcx>>> {
+        debug!(">>>>>> donoughliu select_where_possible");
         let mut selcx = SelectionContext::new(infcx);
+        // donoughliu here we goes into the rustc_trait_selection module
         self.select(&mut selcx)
     }
 
@@ -262,6 +265,11 @@ impl<'a, 'b, 'tcx> ObligationProcessor for FulfillProcessor<'a, 'b, 'tcx> {
         &mut self,
         pending_obligation: &mut Self::Obligation,
     ) -> ProcessResult<Self::Obligation, Self::Error> {
+        // donoughliu here we process obligation, obligation is not limited to trait it's ty::Predicate::*
+        debug!(
+            ">>>>>> donoughliu process_obligation(pending_obligation: {:?})",
+            pending_obligation
+        );
         // If we were stalled on some unresolved variables, first check whether
         // any of them have been resolved; if not, don't bother doing more work
         // yet.
@@ -305,6 +313,8 @@ impl<'a, 'b, 'tcx> ObligationProcessor for FulfillProcessor<'a, 'b, 'tcx> {
 
         let obligation = &mut pending_obligation.obligation;
 
+        debug!("process_obligation: old obligation = {:?}", obligation);
+
         if obligation.predicate.has_infer_types_or_consts() {
             obligation.predicate =
                 self.selcx.infcx().resolve_vars_if_possible(&obligation.predicate);
@@ -314,8 +324,10 @@ impl<'a, 'b, 'tcx> ObligationProcessor for FulfillProcessor<'a, 'b, 'tcx> {
 
         match obligation.predicate {
             ty::Predicate::Trait(ref data, _) => {
+                debug!(">>>>>> donoughliu point 0");
                 let trait_obligation = obligation.with(*data);
 
+                debug!(">>>>>> donoughliu point 1");
                 if data.is_global() {
                     // no type variables present, can use evaluation for better caching.
                     // FIXME: consider caching errors too.
@@ -328,6 +340,7 @@ impl<'a, 'b, 'tcx> ObligationProcessor for FulfillProcessor<'a, 'b, 'tcx> {
                     }
                 }
 
+                debug!(">>>>>> donoughliu point 2");
                 match self.selcx.select(&trait_obligation) {
                     Ok(Some(vtable)) => {
                         debug!(

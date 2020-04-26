@@ -17,9 +17,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Expectation<'tcx>,
         match_src: hir::MatchSource,
     ) -> Ty<'tcx> {
+        debug!(">>>>>> donoughliu check_match with expectation: {:?}", expected);
+        // donoughliu here the match checked, yes it is.
         let tcx = self.tcx;
 
         use hir::MatchSource::*;
+        // source_if: if source has `if` -_-
         let (source_if, if_no_else, force_scrutinee_bool) = match match_src {
             IfDesugar { contains_else_clause } => (true, !contains_else_clause, true),
             IfLetDesugar { contains_else_clause } => (true, !contains_else_clause, false),
@@ -27,7 +30,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             _ => (false, false, false),
         };
 
-        // Type check the descriminant and get its type.
+        // Type check the discriminant and get its type.
         let scrut_ty = if force_scrutinee_bool {
             // Here we want to ensure:
             //
@@ -52,6 +55,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // Otherwise, we have to union together the types that the arms produce and so forth.
         let scrut_diverges = self.diverges.replace(Diverges::Maybe);
+        // donoughliu diverge here means the diverge in program flow like `return`
 
         // #55810: Type check patterns first so we get types for all bindings.
         for arm in arms {
@@ -70,7 +74,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let mut all_arms_diverge = Diverges::WarnedAlways;
 
         let expected = expected.adjust_for_branches(self);
+        debug!(
+            ">>>>>> donoughliu check_match expectation after adjust_for_branches: {:?}",
+            expected
+        );
 
+        // donoughliu this `coercion` is important
         let mut coercion = {
             let coerce_first = match expected {
                 // We don't coerce to `()` so that if the match expression is a
@@ -90,6 +99,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let mut other_arms = vec![]; // Used only for diagnostics.
         let mut prior_arm_ty = None;
         for (i, arm) in arms.iter().enumerate() {
+            debug!(">>>>>> donoughliu loop {}", i);
             if let Some(g) = &arm.guard {
                 self.diverges.set(Diverges::Maybe);
                 match g {
@@ -109,6 +119,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             } else {
                 // Only call this if this is not an `if` expr with an expected type and no `else`
                 // clause to avoid duplicated type errors. (#60254)
+                debug!(">>>>>> donoughliu check expectation {:?}", expected);
                 self.check_expr_with_expectation(&arm.body, expected)
             };
             all_arms_diverge &= self.diverges.get();
@@ -136,6 +147,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     0 => (arm_span, ObligationCauseCode::BlockTailExpression(arm.body.hir_id)),
                     _ => (
                         expr.span,
+                        // donoughliu !!! where error emits
                         ObligationCauseCode::MatchExpressionArm(box MatchExpressionArmCause {
                             arm_span,
                             source: match_src,
@@ -146,7 +158,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     ),
                 };
                 let cause = self.cause(span, code);
+                // donoughliu we first gen coerce cause then coerce with the
+                // cause, rather than gen fail info after failed. And of course
+                // we failed here.
+                debug!(">>>>>> donoughliu try coerce {:?}", arm_ty);
                 coercion.coerce(self, &cause, &arm.body, arm_ty);
+                debug!(">>>>>> donoughliu out of coerce");
                 other_arms.push(arm_span);
                 if other_arms.len() > 5 {
                     other_arms.remove(0);
@@ -154,6 +171,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
             prior_arm_ty = Some(arm_ty);
         }
+        debug!(">>>>>> donoughliu out of loop");
 
         // If all of the arms in the `match` diverge,
         // and we're dealing with an actual `match` block
@@ -173,6 +191,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // We won't diverge unless the scrutinee or all arms diverge.
         self.diverges.set(scrut_diverges | all_arms_diverge);
 
+        debug!(">>>>>> donoughliu nearly out of check_match function");
         coercion.complete(self)
     }
 

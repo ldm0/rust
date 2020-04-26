@@ -400,6 +400,7 @@ impl<O: ForestObligation> ObligationForest<O> {
     where
         P: ObligationProcessor<Obligation = O>,
     {
+        debug!(">>>>>> donoughliu process_obligations");
         let mut errors = vec![];
         let mut stalled = true;
 

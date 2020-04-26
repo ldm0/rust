@@ -111,6 +111,7 @@ impl<'tcx> fmt::Display for TypeError<'tcx> {
                 values.found,
                 pluralize!(values.found)
             ),
+            // donoughliu current where report emits
             FixedArraySize(values) => write!(
                 f,
                 "expected an array with a fixed size of {} element{}, \

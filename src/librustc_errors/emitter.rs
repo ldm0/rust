@@ -298,6 +298,7 @@ pub trait Emitter {
                 }
             });
 
+        // donoughliu highlight call fix multispan here
         if !backtrace {
             self.fix_multispans_in_extern_macros(source_map, span, children);
         }
@@ -330,6 +331,7 @@ pub trait Emitter {
         children: &mut Vec<SubDiagnostic>,
         backtrace: bool,
     ) {
+        // donoughliu highlight call fix multispan here
         for span in iter::once(span).chain(children.iter_mut().map(|child| &mut child.span)) {
             self.render_multispan_macro_backtrace(span, backtrace);
         }
@@ -385,6 +387,7 @@ pub trait Emitter {
                 if !redundant_span && matches!(trace.kind, ExpnKind::Macro(MacroKind::Bang, _))
                     || always_backtrace
                 {
+                    // donoughliu one of two position uses 'in this macro invocation'
                     new_labels.push((
                         trace.call_site,
                         format!(
@@ -469,6 +472,7 @@ impl Emitter for EmitterWriter {
     }
 
     fn emit_diagnostic(&mut self, diag: &Diagnostic) {
+        // donoughliu highlight call fix_multispans here
         let mut children = diag.children.clone();
         let (mut primary_span, suggestions) = self.primary_span_formatted(&diag);
         debug!("emit_diagnostic: suggestions={:?}", suggestions);

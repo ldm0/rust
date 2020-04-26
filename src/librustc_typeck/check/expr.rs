@@ -148,7 +148,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Expectation<'tcx>,
         needs: Needs,
     ) -> Ty<'tcx> {
-        debug!(">> type-checking: expr={:?} expected={:?}", expr, expected);
+        // &{ emm } AddrOf => Block => Path
+        debug!("check_expr_with_expectation_and_needs(expected={:?}, needs={:?})", expected, needs);
 
         // True if `expr` is a `Try::from_ok(())` that is a result of desugaring a try block
         // without the final expr (e.g. `try { return; }`). We don't want to generate an
@@ -214,7 +215,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Expectation<'tcx>,
         needs: Needs,
     ) -> Ty<'tcx> {
-        debug!("check_expr_kind(expr={:?}, expected={:?}, needs={:?})", expr, expected, needs,);
+        debug!(
+            "check_expr_kind(expr.kind={:?}, expected={:?}, needs={:?})",
+            expr.kind, expected, needs
+        );
 
         let tcx = self.tcx;
         match expr.kind {
@@ -229,6 +233,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 self.check_expr_unary(unop, oprnd, expected, needs, expr)
             }
             ExprKind::AddrOf(kind, mutbl, ref oprnd) => {
+                // donoughliu we focus here
                 self.check_expr_addr_of(kind, mutbl, oprnd, expected, expr)
             }
             ExprKind::Path(ref qpath) => self.check_expr_path(qpath, expr),
@@ -259,6 +264,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             ExprKind::Closure(capture, ref decl, body_id, _, gen) => {
                 self.check_expr_closure(expr, capture, &decl, body_id, gen, expected)
             }
+            // donoughliu attention here too
             ExprKind::Block(ref body, _) => self.check_block_with_expected(&body, expected),
             ExprKind::Call(ref callee, ref args) => self.check_call(expr, &callee, args, expected),
             ExprKind::MethodCall(ref segment, span, ref args) => {
@@ -388,6 +394,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Expectation<'tcx>,
         expr: &'tcx hir::Expr<'tcx>,
     ) -> Ty<'tcx> {
+        debug!("check_expr_addr_of(expected={:?})", expected);
+        // donoughliu when expr is addr_of, we calls the function. So here we
+        // unwrap the reference.
         let hint = expected.only_has_type(self).map_or(NoExpectation, |ty| {
             match ty.kind {
                 ty::Ref(_, ty, _) | ty::RawPtr(ty::TypeAndMut { ty, .. }) => {
@@ -397,6 +406,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         // the last field of a struct can be unsized.
                         ExpectHasType(ty)
                     } else {
+                        // donoughliu here the emm in `&{emm}` is extracted. If
+                        // emm is str, we got ExpectRvalueLikeUnsized(ty) else
+                        // we got ExpectHasType(ty). So from here the behavior
+                        // diverges.
                         Expectation::rvalue_hint(self, ty)
                     }
                 }
@@ -404,6 +417,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
         });
         let needs = Needs::maybe_mut_place(mutbl);
+        // donoughliu here we called the function second time, what's the oprnd.kind?
         let ty = self.check_expr_with_expectation_and_needs(&oprnd, hint, needs);
 
         let tm = ty::TypeAndMut { ty, mutbl };
@@ -469,6 +483,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     }
 
     fn check_expr_path(&self, qpath: &hir::QPath<'_>, expr: &'tcx hir::Expr<'tcx>) -> Ty<'tcx> {
+        debug!(">>>>>> donoughliu check_expr_path");
         let tcx = self.tcx;
         let (res, opt_ty, segs) = self.resolve_ty_and_res_ufcs(qpath, expr.hir_id, expr.span);
         let ty = match res {
@@ -975,6 +990,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expected: Expectation<'tcx>,
         expr: &'tcx hir::Expr<'tcx>,
     ) -> Ty<'tcx> {
+        debug!(">>>>>> donoughliu check_expr_array expected: {:?}", expected);
+
         let element_ty = if !args.is_empty() {
             let coerce_to = expected
                 .to_option(self)

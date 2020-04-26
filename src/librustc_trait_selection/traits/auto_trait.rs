@@ -81,6 +81,7 @@ impl<'tcx> AutoTraitFinder<'tcx> {
         trait_did: DefId,
         auto_trait_callback: impl Fn(&InferCtxt<'_, 'tcx>, AutoTraitInfo<'tcx>) -> A,
     ) -> AutoTraitResult<A> {
+        debug!(">>>>>> donoughliu find_auto_trait_generics");
         let tcx = self.tcx;
 
         let trait_ref = ty::TraitRef { def_id: trait_did, substs: tcx.mk_substs_trait(ty, &[]) };
@@ -268,6 +269,7 @@ impl AutoTraitFinder<'tcx> {
         fresh_preds: &mut FxHashSet<ty::Predicate<'tcx>>,
         only_projections: bool,
     ) -> Option<(ty::ParamEnv<'tcx>, ty::ParamEnv<'tcx>)> {
+        debug!(">>>>>> donoughliu evaluate_predicates");
         let tcx = infcx.tcx;
 
         let mut select = SelectionContext::with_negative(&infcx, true);

@@ -155,7 +155,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
 
     fn coerce(&self, a: Ty<'tcx>, b: Ty<'tcx>) -> CoerceResult<'tcx> {
         let a = self.shallow_resolve(a);
-        debug!("Coerce.tys({:?} => {:?})", a, b);
+        debug!("coerce({:?} => {:?})", a, b);
 
         // Just ignore error types.
         if a.references_error() || b.references_error() {
@@ -211,16 +211,13 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             ty::RawPtr(mt_b) => {
                 return self.coerce_unsafe_ptr(a, b, mt_b.mutbl);
             }
-
-            ty::Ref(r_b, ty, mutbl) => {
-                let mt_b = ty::TypeAndMut { ty, mutbl };
-                return self.coerce_borrowed_pointer(a, b, r_b, mt_b);
+            ty::Ref(r_b, _, mutbl_b) => {
+                return self.coerce_borrowed_pointer(a, b, r_b, mutbl_b);
             }
-
             _ => {}
         }
 
-        match a.kind {
+        let result = match a.kind {
             ty::FnDef(..) => {
                 // Function items are coercible to any closure
                 // type; function pointers are not (that would
@@ -244,7 +241,9 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
                 // Otherwise, just use unification rules.
                 self.unify_and(a, b, identity)
             }
-        }
+        };
+        debug!("coerce: ends");
+        result
     }
 
     /// Reborrows `&mut A` to `&mut B` and `&(mut) A` to `&B`.
@@ -255,7 +254,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
         a: Ty<'tcx>,
         b: Ty<'tcx>,
         r_b: ty::Region<'tcx>,
-        mt_b: TypeAndMut<'tcx>,
+        mutbl_b: hir::Mutability,
     ) -> CoerceResult<'tcx> {
         debug!("coerce_borrowed_pointer(a={:?}, b={:?})", a, b);
 
@@ -268,11 +267,11 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
         let (r_a, mt_a) = match a.kind {
             ty::Ref(r_a, ty, mutbl) => {
                 let mt_a = ty::TypeAndMut { ty, mutbl };
-                coerce_mutbls(mt_a.mutbl, mt_b.mutbl)?;
                 (r_a, mt_a)
             }
             _ => return self.unify_and(a, b, identity),
         };
+        coerce_mutbls(mt_a.mutbl, mutbl_b)?;
 
         let span = self.cause.span;
 
@@ -364,7 +363,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
                 r_a // [3] above
             } else {
                 if r_borrow_var.is_none() {
-                    // create var lazilly, at most once
+                    // create var lazily, at most once
                     let coercion = Coercion(span);
                     let r = self.next_region_var(coercion);
                     r_borrow_var = Some(r); // [4] above
@@ -375,7 +374,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
                 r,
                 TypeAndMut {
                     ty: referent_ty,
-                    mutbl: mt_b.mutbl, // [1] above
+                    mutbl: mutbl_b, // [1] above
                 },
             );
             match self.unify(derefd_ty_a, b) {
@@ -417,11 +416,11 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             // `self.x` both have `&mut `type would be a move of
             // `self.x`, but we auto-coerce it to `foo(&mut *self.x)`,
             // which is a borrow.
-            assert_eq!(mt_b.mutbl, hir::Mutability::Not); // can only coerce &T -> &U
+            assert_eq!(mutbl_b, hir::Mutability::Not); // can only coerce &T -> &U
             return success(vec![], ty, obligations);
         }
 
-        let needs = Needs::maybe_mut_place(mt_b.mutbl);
+        let needs = Needs::maybe_mut_place(mutbl_b);
         let InferOk { value: mut adjustments, obligations: o } =
             autoderef.adjust_steps_as_infer_ok(self, needs);
         obligations.extend(o);
@@ -433,7 +432,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             ty::Ref(r_borrow, _, _) => r_borrow,
             _ => span_bug!(span, "expected a ref type, got {:?}", ty),
         };
-        let mutbl = match mt_b.mutbl {
+        let mutbl = match mutbl_b {
             hir::Mutability::Not => AutoBorrowMutability::Not,
             hir::Mutability::Mut => {
                 AutoBorrowMutability::Mut { allow_two_phase_borrow: self.allow_two_phase }
@@ -697,6 +696,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
                 if a_sig.abi() == Abi::RustIntrinsic || a_sig.abi() == Abi::PlatformIntrinsic {
                     return Err(TypeError::IntrinsicCast);
                 }
+                // donoughliu the problem might be here where the `<u16 as Zoo>::X` turns into usize
                 let InferOk { value: a_sig, mut obligations } =
                     self.normalize_associated_types_in_as_infer_ok(self.cause.span, &a_sig);
 
@@ -836,7 +836,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         allow_two_phase: AllowTwoPhase,
     ) -> RelateResult<'tcx, Ty<'tcx>> {
         let source = self.resolve_vars_with_obligations(expr_ty);
-        debug!("coercion::try({:?}: {:?} -> {:?})", expr, source, target);
+        debug!("try_coerce({:#?} -> {:#?})", source, target);
 
         let cause = self.cause(expr.span, ObligationCauseCode::ExprAssignable);
         let coerce = Coerce::new(self, cause, allow_two_phase);
@@ -930,8 +930,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // First try to coerce the new expression to the type of the previous ones,
         // but only if the new expression has no coercion already applied to it.
+        // donoughliu why?
         let mut first_error = None;
         if !self.tables.borrow().adjustments().contains_key(new.hir_id) {
+            debug!(">>>>>> donoughliu into the first branch");
             let result = self.commit_if_ok(|_| coerce.coerce(new_ty, prev_ty));
             match result {
                 Ok(ok) => {
@@ -947,6 +949,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // This requires ensuring there are no coercions applied to *any* of the
         // previous expressions, other than noop reborrows (ignoring lifetimes).
         for expr in exprs {
+            debug!(">>>>>> donoughliu into the second branch");
             let expr = expr.as_coercion_site();
             let noop = match self.tables.borrow().expr_adjustments(expr) {
                 &[Adjustment { kind: Adjust::Deref(_), .. }, Adjustment { kind: Adjust::Borrow(AutoBorrow::Ref(_, mutbl_adj)), .. }] =>
@@ -973,12 +976,18 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
         }
 
+        let lub = self.commit_if_ok(|_| self.at(cause, self.param_env).lub(prev_ty, new_ty));
+        debug!(">>>>>> donoughliu try to find out lub: {:?}", lub);
+
+        debug!(">>>>>> donoughliu into the third branch");
         match self.commit_if_ok(|_| coerce.coerce(prev_ty, new_ty)) {
             Err(_) => {
                 // Avoid giving strange errors on failed attempts.
                 if let Some(e) = first_error {
                     Err(e)
                 } else {
+                    debug!(">>>>>> donoughliu we actually got here?");
+                    // donoughliu the problem is we never got here when coercing `&[u8; 3]` and `&[u8; 4]`
                     self.commit_if_ok(|_| self.at(cause, self.param_env).lub(prev_ty, new_ty))
                         .map(|ok| self.register_infer_ok_obligations(ok))
                 }
@@ -1166,6 +1175,8 @@ impl<'tcx, 'exprs, E: AsCoercionSite> CoerceMany<'tcx, 'exprs, E> {
         }
 
         // Handle the actual type unification etc.
+        // donoughliu hint from coerce the expression is always Some(x) which means
+        // after the first time usage we always try to try_find_coercion_lub()
         let result = if let Some(expression) = expression {
             if self.pushed == 0 {
                 // Special-case the first expression we are coercing.
@@ -1173,6 +1184,7 @@ impl<'tcx, 'exprs, E: AsCoercionSite> CoerceMany<'tcx, 'exprs, E> {
                 // We don't allow two-phase borrows, see comment in try_find_coercion_lub for why
                 fcx.try_coerce(expression, expression_ty, self.expected_ty, AllowTwoPhase::No)
             } else {
+                // donoughliu only here we tried to find lub
                 match self.expressions {
                     Expressions::Dynamic(ref exprs) => fcx.try_find_coercion_lub(
                         cause,
@@ -1231,6 +1243,7 @@ impl<'tcx, 'exprs, E: AsCoercionSite> CoerceMany<'tcx, 'exprs, E> {
                     self.pushed += 1;
                 }
             }
+            // donoughliu yes!!!!!!!!!! the error is just in the coercion
             Err(coercion_error) => {
                 let (expected, found) = if label_expression_as_expected {
                     // In the case where this is a "forced unit", like
@@ -1290,6 +1303,7 @@ impl<'tcx, 'exprs, E: AsCoercionSite> CoerceMany<'tcx, 'exprs, E> {
                         }
                     }
                     _ => {
+                        // donoughliu here it is
                         err = fcx.report_mismatched_types(cause, expected, found, coercion_error);
                     }
                 }

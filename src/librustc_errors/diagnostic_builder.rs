@@ -97,6 +97,7 @@ impl<'a> DerefMut for DiagnosticBuilder<'a> {
 impl<'a> DiagnosticBuilder<'a> {
     /// Emit the diagnostic.
     pub fn emit(&mut self) {
+        // donoughliu highlight emit diagnostic here
         self.0.handler.emit_diagnostic(&self);
         self.cancel();
     }
