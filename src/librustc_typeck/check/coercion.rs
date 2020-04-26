@@ -780,38 +780,38 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             let span = self.cause.span;
             let mut first_error = None;
             let mut autoderef = self.autoderef(span, a);
-            let InferOk { value: target, mut obligations } =
-                match autoderef.by_ref().skip(1).find_map(|(referent_ty, _)| {
-                    // Check that the types which they point at are compatible.
-                    let a_unsafe =
-                        self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: referent_ty });
-                    match self.unify(a_unsafe, b) {
-                        Ok(ok) => Some(ok),
-                        Err(err) => {
-                            if first_error.is_none() {
-                                first_error = Some(err);
-                            }
-                            None
+            match autoderef.by_ref().skip(1).find_map(|(referent_ty, _)| {
+                // Check that the types which they point at are compatible.
+                let a_unsafe = self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: referent_ty });
+                self.unify(a_unsafe, b).map_or_else(
+                    |err| {
+                        if first_error.is_none() {
+                            first_error = Some(err);
                         }
-                    }
-                }) {
-                    Some(d) => d,
-                    None => {
-                        let err = first_error.expect("coerce_unsafe_ptr had no error");
-                        debug!("coerce_unsafe_ptr: failed with err = {:?}", err);
-                        return Err(err);
-                    }
-                };
+                        None
+                    },
+                    |ok| Some(ok),
+                )
+            }) {
+                Some(InferOk { value: target, mut obligations }) => {
+                    let needs = Needs::maybe_mut_place(mutbl_b);
+                    let InferOk { value: mut adjustments, obligations: o } =
+                        autoderef.adjust_steps_as_infer_ok(self, needs);
+                    obligations.extend(o);
+                    obligations.extend(autoderef.into_obligations());
 
-            let needs = Needs::maybe_mut_place(mutbl_b);
-            let InferOk { value: mut adjustments, obligations: o } =
-                autoderef.adjust_steps_as_infer_ok(self, needs);
-            obligations.extend(o);
-            obligations.extend(autoderef.into_obligations());
-
-            adjustments
-                .push(Adjustment { kind: Adjust::Borrow(AutoBorrow::RawPtr(mutbl_b)), target });
-            success(adjustments, target, obligations)
+                    adjustments.push(Adjustment {
+                        kind: Adjust::Borrow(AutoBorrow::RawPtr(mutbl_b)),
+                        target,
+                    });
+                    success(adjustments, target, obligations)
+                }
+                None => {
+                    let err = first_error.expect("coerce_unsafe_ptr had no error");
+                    debug!("coerce_unsafe_ptr: failed with err = {:?}", err);
+                    Err(err)
+                }
+            }
         } else {
             let a_unsafe = self.tcx.mk_ptr(ty::TypeAndMut { mutbl: mutbl_b, ty: mt_a.ty });
             if mt_a.mutbl != mutbl_b {
