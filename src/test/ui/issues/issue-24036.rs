@@ -10,7 +10,7 @@ fn closure_from_match() {
         2 => |c| c - 1,
         _ => |c| c - 1
     };
-    //~^^^ ERROR `match` arms have incompatible types
+    //~^^^^ ERROR 9:15: 9:16: type annotations needed [E0282]
 }
 
 fn main() { }
