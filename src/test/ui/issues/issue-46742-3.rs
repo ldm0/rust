@@ -9,7 +9,7 @@ fn main() {
         "-" => |a, b| (a - b + cap) as i32,
         _ => unimplemented!(),
     })(5, 5);
-    //~^^^ ERROR 9:16: 9:43: `match` arms have incompatible types [E0308]
+    //~^^^ ERROR `match` arms have incompatible types
 
 
     // We shouldn't coerce capturing closure to a non-capturing closure
@@ -18,7 +18,7 @@ fn main() {
         "-" => |a, b| (a - b + cap) as i32,
         _ => unimplemented!(),
     })(5, 5);
-    //~^^^ ERROR 18:16: 18:43: `match` arms have incompatible types [E0308]
+    //~^^^ ERROR `match` arms have incompatible types
 
 
     // We shouldn't coerce non-capturing closure to a capturing closure
@@ -27,7 +27,7 @@ fn main() {
         "-" => |a, b| (a - b) as i32,
         _ => unimplemented!(),
     })(5, 5);
-    //~^^^ ERROR 27:16: 27:37: `match` arms have incompatible types [E0308]
+    //~^^^ ERROR `match` arms have incompatible types
 
     // We shouldn't coerce capturing closure to a capturing closure
     let _ = (match "+" {
@@ -35,5 +35,5 @@ fn main() {
         "-" => |a, b| (a - b + cap) as i32,
         _ => unimplemented!(),
     })(5, 5);
-    //~^^^ ERROR 35:16: 35:43: `match` arms have incompatible types [E0308]
+    //~^^^ ERROR `match` arms have incompatible types
 }

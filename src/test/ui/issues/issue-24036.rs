@@ -10,7 +10,7 @@ fn closure_from_match() {
         2 => |c| c - 1,
         _ => |c| c - 1
     };
-    //~^^^^ ERROR 9:15: 9:16: type annotations needed [E0282]
+    //~^^^^ ERROR type annotations needed
 }
 
 fn main() { }
