@@ -388,7 +388,7 @@ impl Once {
         let mut state_and_queue = self.state_and_queue.load(Ordering::Acquire);
         loop {
             match state_and_queue {
-                COMPLETE => break,
+                COMPLETE => return,
                 POISONED if !ignore_poisoning => {
                     // Panic to propagate the poison.
                     panic!("Once instance has previously been poisoned");
@@ -400,35 +400,34 @@ impl Once {
                         RUNNING,
                         Ordering::Acquire,
                     );
-                    if old != state_and_queue {
-                        state_and_queue = old;
-                        continue;
+                    if old == state_and_queue {
+                        // State changes
+                        break;
                     }
-                    // `waiter_queue` will manage other waiting threads, and
-                    // wake them up on drop.
-                    let mut waiter_queue = WaiterQueue {
-                        state_and_queue: &self.state_and_queue,
-                        set_state_on_drop_to: POISONED,
-                    };
-                    // Run the initialization function, letting it know if we're
-                    // poisoned or not.
-                    let init_state = OnceState {
-                        poisoned: state_and_queue == POISONED,
-                        set_state_on_drop_to: Cell::new(COMPLETE),
-                    };
-                    init(&init_state);
-                    waiter_queue.set_state_on_drop_to = init_state.set_state_on_drop_to.get();
-                    break;
+                    state_and_queue = old;
                 }
                 _ => {
                     // All other values must be RUNNING with possibly a
                     // pointer to the waiter queue in the more significant bits.
-                    assert!(state_and_queue & STATE_MASK == RUNNING);
+                    debug_assert!(state_and_queue & STATE_MASK == RUNNING);
                     wait(&self.state_and_queue, state_and_queue);
                     state_and_queue = self.state_and_queue.load(Ordering::Acquire);
                 }
             }
         }
+        // Run the initialization function, letting it know if we're
+        // poisoned or not.
+        let init_state = OnceState {
+            poisoned: state_and_queue == POISONED,
+            set_state_on_drop_to: Cell::new(COMPLETE),
+        };
+        init(&init_state);
+        // The WaiterQueue will manage other waiting threads, and
+        // wake them up on drop.
+        let _ = WaiterQueue {
+            state_and_queue: &self.state_and_queue,
+            set_state_on_drop_to: init_state.set_state_on_drop_to.get(),
+        };
     }
 }
 
