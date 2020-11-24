@@ -257,8 +257,7 @@ impl Once {
             return;
         }
 
-        let mut f = Some(f);
-        self.call_inner(false, &mut |_| f.take().unwrap()());
+        self.call_inner(false, Box::new(|_| f()));
     }
 
     /// Performs the same function as [`call_once()`] except ignores poisoning.
@@ -317,8 +316,7 @@ impl Once {
             return;
         }
 
-        let mut f = Some(f);
-        self.call_inner(true, &mut |p| f.take().unwrap()(p));
+        self.call_inner(true, Box::new(f));
     }
 
     /// Returns `true` if some [`call_once()`] call has completed
@@ -371,7 +369,9 @@ impl Once {
         // `Release` operations on the slow path.
         self.state_and_queue.load(Ordering::Acquire) == COMPLETE
     }
+}
 
+impl<'f> Once {
     // This is a non-generic function to reduce the monomorphization cost of
     // using `call_once` (this isn't exactly a trivial or small implementation).
     //
@@ -384,7 +384,7 @@ impl Once {
     // currently no way to take an `FnOnce` and call it via virtual dispatch
     // without some allocation overhead.
     #[cold]
-    fn call_inner(&self, ignore_poisoning: bool, init: &mut dyn FnMut(&OnceState)) {
+    fn call_inner(&self, ignore_poisoning: bool, init: Box<dyn FnOnce(&OnceState) + 'f>) {
         let mut state_and_queue = self.state_and_queue.load(Ordering::Acquire);
         loop {
             match state_and_queue {
