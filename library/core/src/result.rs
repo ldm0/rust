@@ -1907,12 +1907,62 @@ impl<T, E> ops::Try for Result<T, E> {
     }
 }
 
+/// tmp
 #[unstable(feature = "try_trait_v2", issue = "84277")]
-impl<T, E, F: From<E>> ops::FromResidual<Result<convert::Infallible, E>> for Result<T, F> {
+#[rustc_unsafe_specialization_marker]
+pub trait Equal<T>: From<T> + SameFrom<T> {}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+impl<T: From<T> + SameFrom<T> + Sized> Equal<T> for T {}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+pub trait SameFrom<T> {
+    /// tmp
+    fn switch(_: T) -> Self;
+}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+impl<T> SameFrom<T> for T {
+    /// tmp
+    fn switch(x: T) -> Self {
+        x
+    }
+}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+pub trait SpecFrom<T> {
+    /// tmp
+    fn from(_: T) -> Self;
+}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+impl<F: From<T>, T> SpecFrom<T> for F {
+    /// tmp
+    default fn from(x: T) -> Self {
+        x.into()
+    }
+}
+
+/// tmp
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+impl<F: From<T> + Equal<T>, T> SpecFrom<T> for F {
+    /// tmp
+    fn from(x: T) -> Self {
+        <F as SameFrom<T>>::switch(x)
+    }
+}
+
+#[unstable(feature = "try_trait_v2", issue = "84277")]
+impl<T, E, F: SpecFrom<E>> ops::FromResidual<Result<convert::Infallible, E>> for Result<T, F> {
     #[inline]
-    fn from_residual(residual: Result<convert::Infallible, E>) -> Self {
+    default fn from_residual(residual: Result<convert::Infallible, E>) -> Self {
         match residual {
-            Err(e) => Err(From::from(e)),
+            Err(e) => Err(SpecFrom::from(e)),
         }
     }
 }
