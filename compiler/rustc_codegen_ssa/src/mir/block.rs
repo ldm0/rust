@@ -143,6 +143,7 @@ impl<'a, 'tcx> TerminatorCodegenHelper<'tcx> {
         } else if fx.mir[self.bb].is_cleanup
             && fn_abi.can_unwind
             && !base::wants_msvc_seh(fx.cx.tcx().sess)
+            && std::env::var("LDM_OPEN_DOUBLE_UNWIND").is_ok()
         {
             // Exception must not propagate out of the execution of a cleanup (doing so
             // can cause undefined behaviour). We insert a double unwind guard for
