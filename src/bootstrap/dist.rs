@@ -845,7 +845,12 @@ impl Step for Src {
         copy_src_dirs(
             builder,
             &builder.src,
-            &["library", "src/llvm-project/libunwind"],
+            &[
+                "library",
+                "src/llvm-project/libunwind",
+                "src/llvm-project/compiler-rt/include",
+                "src/llvm-project/compiler-rt/lib/profile",
+            ],
             &[
                 // not needed and contains symlinks which rustup currently
                 // chokes on when unpacking.
