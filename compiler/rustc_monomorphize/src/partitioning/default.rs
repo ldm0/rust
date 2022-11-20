@@ -423,6 +423,7 @@ fn mono_item_visibility<'tcx>(
     let def_id = match instance.def {
         InstanceDef::Item(def) => def.did,
         InstanceDef::DropGlue(def_id, Some(_)) => def_id,
+        InstanceDef::CloneShim(def_id, _) => def_id,
 
         // These are all compiler glue and such, never exported, always hidden.
         InstanceDef::VTableShim(..)
@@ -431,8 +432,7 @@ fn mono_item_visibility<'tcx>(
         | InstanceDef::Virtual(..)
         | InstanceDef::Intrinsic(..)
         | InstanceDef::ClosureOnceShim { .. }
-        | InstanceDef::DropGlue(..)
-        | InstanceDef::CloneShim(..) => return Visibility::Hidden,
+        | InstanceDef::DropGlue(..) => return Visibility::Hidden,
     };
 
     // The `start_fn` lang item is actually a monomorphized instance of a

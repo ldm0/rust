@@ -321,6 +321,19 @@ fn exported_symbols_provider_local<'tcx>(
                         ));
                     }
                 }
+                MonoItem::Fn(Instance { def: InstanceDef::CloneShim(def, _), substs }) => {
+                    if substs.non_erasable_generics().next().is_some() {
+                        let symbol = ExportedSymbol::Generic(def, substs);
+                        symbols.push((
+                            symbol,
+                            SymbolExportInfo {
+                                level: SymbolExportLevel::Rust,
+                                kind: SymbolExportKind::Text,
+                                used: false,
+                            },
+                        ));
+                    }
+                }
                 MonoItem::Fn(Instance { def: InstanceDef::DropGlue(_, Some(ty)), substs }) => {
                     // A little sanity-check
                     debug_assert_eq!(
@@ -336,6 +349,20 @@ fn exported_symbols_provider_local<'tcx>(
                         },
                     ));
                 }
+                /*
+                MonoItem::Fn(Instance { def: InstanceDef::CloneShim(def, ty), substs }) => {
+                    if substs.non_erasable_generics().next().is_some() {
+                        symbols.push((
+                            ExportedSymbol::CloneShim(def, ty),
+                            SymbolExportInfo {
+                                level: SymbolExportLevel::Rust,
+                                kind: SymbolExportKind::Text,
+                                used: false,
+                            },
+                        ));
+                    }
+                }
+                 */
                 _ => {
                     // Any other symbols don't qualify for sharing
                 }

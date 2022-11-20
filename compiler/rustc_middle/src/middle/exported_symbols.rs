@@ -43,6 +43,7 @@ pub enum ExportedSymbol<'tcx> {
     NonGeneric(DefId),
     Generic(DefId, SubstsRef<'tcx>),
     DropGlue(Ty<'tcx>),
+    // CloneShim(DefId, Ty<'tcx>),
     NoDefId(ty::SymbolName<'tcx>),
 }
 

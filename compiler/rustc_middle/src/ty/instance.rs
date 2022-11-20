@@ -12,6 +12,8 @@ use rustc_span::Symbol;
 
 use std::fmt;
 
+use super::WithOptConstParam;
+
 /// A monomorphized `InstanceDef`.
 ///
 /// Monomorphization happens on-the-fly and no monomorphized MIR is ever created. Instead, this type
@@ -129,9 +131,10 @@ impl<'tcx> Instance<'tcx> {
         self.substs.non_erasable_generics().next()?;
 
         match self.def {
-            InstanceDef::Item(def) => tcx
-                .upstream_monomorphizations_for(def.did)
-                .and_then(|monos| monos.get(&self.substs).cloned()),
+            InstanceDef::CloneShim(did, _) | InstanceDef::Item(WithOptConstParam { did, .. }) => {
+                tcx.upstream_monomorphizations_for(did)
+                    .and_then(|monos| monos.get(&self.substs).cloned())
+            }
             InstanceDef::DropGlue(_, Some(_)) => tcx.upstream_drop_glue_for(self.substs),
             _ => None,
         }
